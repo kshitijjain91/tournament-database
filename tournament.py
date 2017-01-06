@@ -70,7 +70,8 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-
+    conn = connect()
+    c = conn.cursor()
 
 
 def reportMatch(winner, loser):
