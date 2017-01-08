@@ -12,19 +12,16 @@
 \c tournament;
 
 -- create players table
-drop table if exists players;
-create table players (player_id serial,
+create table if not exists players (player_id serial,
 player_name text);
 
 
 -- create matches table
-drop table if exists matches;
-create table matches (match_id serial,
+create table if not exists matches (match_id serial,
 player1_id int,
 player2_id int,
 winner_id int,
 loser_id int);
-
 
 
 

@@ -15,7 +15,7 @@ def deleteMatches():
     """Remove all the match records from the database."""
     conn = connect()
     c = conn.cursor()
-    c.execute("DELETE matches;")
+    c.execute("delete from matches;")
     conn.commit()
     conn.close()
 
@@ -24,7 +24,7 @@ def deletePlayers():
     """Remove all the player records from the database."""
     conn = connect()
     c = conn.cursor()
-    c.execute("DELETE players;")
+    c.execute("DELETE from players;")
     conn.commit()
     conn.close()
 
@@ -52,7 +52,7 @@ def registerPlayer(name):
     """
     conn = connect()
     c = conn.cursor()
-    c.execute("INSERT INTO players (player_name) VALUES ({0})".format(name))
+    c.execute("INSERT INTO players (player_name) VALUES (%s)", (name, ))
     conn.commit()
     conn.close()
 
@@ -72,6 +72,58 @@ def playerStandings():
     """
     conn = connect()
     c = conn.cursor()
+    c.execute('''
+        create or replace view wins as select players.player_id, players.player_name, count(matches.winner_id) as num_wins from players left join matches
+        on players.player_id = matches.winner_id
+        group by players.player_id, players.player_name order by count(matches.winner_id) desc;
+        ''')
+
+    # counting number of wins
+    #select players.player_id, players.player_name, count(matches.winner_id) as num_wins from players left join matches
+    #on players.player_id = matches.winner_id group by players.player_id, players.player_name order by count(matches.winner_id) desc;
+
+
+    # player 1 matches p1
+    c.execute('''
+        create or replace view p1 as select players.player_id, players.player_name, count(matches.player1_id) as num_p1 from players left join matches
+    on players.player_id = matches.player1_id
+    group by players.player_id, players.player_name
+    order by count(matches.player1_id) desc;
+        ''')
+
+    # player 2 matches p2
+    c.execute('''
+        create or replace view p2 as select players.player_id, players.player_name, count(matches.player2_id) as num_p2 from players left join matches
+    on players.player_id = matches.player2_id
+    group by players.player_id, players.player_name
+    order by count(matches.player2_id) desc;
+    ''')
+
+    # merge p1 and p2
+    c.execute('''
+        create or replace view p1p2 as select p1.player_id, p1.player_name, p1.num_p1, p2.num_p2
+        from p1 join p2
+        on p1.player_id = p2.player_id''')
+
+
+    # total matches
+    c.execute('''
+        create or replace view num_matches as select player_id, sum(num_p1 + num_p2) as num_matches from p1p2 group by player_id order by sum(num_p1 + num_p2) desc;
+        ''')
+
+    # final table to be returned
+    c.execute('''
+        select wins.player_id, player_name, num_wins, num_matches
+        from wins join num_matches on wins.player_id = num_matches.player_id
+        order by wins.num_wins desc;''')
+
+    standings = c.fetchall()
+    conn.commit()
+    conn.close()
+    return standings
+
+
+
 
 
 def reportMatch(winner, loser):
@@ -81,6 +133,11 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    conn = connect()
+    c = conn.cursor()
+    c.execute("insert into matches (player1_id, player2_id, winner_id, loser_id) values ({0}, {1}, {2}, {3})".format(winner, loser, winner, loser))
+    conn.commit()
+    conn.close()
 
 
 def swissPairings():
@@ -98,5 +155,29 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+    conn = connect()
+    c = conn.cursor()
+    c.execute('''
+        select wins.player_id, player_name, num_wins, num_matches
+        from wins join num_matches on wins.player_id = num_matches.player_id
+        order by wins.num_wins desc;''')
+    standings = c.fetchall()
+    next_rounds = []
+    p = 0
+    while p in range(len(standings)):
+        if p+2 >= len(standings):
+            next_rounds.append((standings[p][0], standings[p][1], standings[p+1][0], standings[p+1][1]))
+            break
+        next_rounds.append((standings[p][0], standings[p][1], standings[p+2][0], standings[p+2][1]))
+        next_rounds.append((standings[p+1][0], standings[p+1][1], standings[p+3][0], standings[p+3][1]))
+        p += 4
+    conn.commit()
+    conn.close()
+    return next_rounds
+
+
+
+
+
 
 
